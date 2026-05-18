@@ -31,9 +31,17 @@ SCRIBE_URL = "https://api.elevenlabs.io/v1/speech-to-text"
 
 
 def load_api_key() -> str:
-    for candidate in [Path(__file__).resolve().parent.parent / ".env", Path(".env")]:
+    # 探索順：案件 .env → cwd .env → マスター（~/.secrets/api-keys.env）→ 環境変数
+    # 案件側があれば優先（上書き）。なければマスターをfallbackとして使う
+    candidates = [
+        Path(__file__).resolve().parent.parent / ".env",
+        Path(".env"),
+        Path.home() / ".secrets" / "api-keys.env",
+    ]
+    for candidate in candidates:
         if candidate.exists():
-            for line in candidate.read_text().splitlines():
+            # Windows の cp932 デフォルトを避けるため明示的に utf-8 指定
+            for line in candidate.read_text(encoding="utf-8").splitlines():
                 line = line.strip()
                 if not line or line.startswith("#") or "=" not in line:
                     continue
@@ -42,7 +50,7 @@ def load_api_key() -> str:
                     return v.strip().strip('"').strip("'")
     v = os.environ.get("ELEVENLABS_API_KEY", "")
     if not v:
-        sys.exit("ELEVENLABS_API_KEY not found in .env or environment")
+        sys.exit("ELEVENLABS_API_KEY not found in master/.env/environment")
     return v
 
 
@@ -62,7 +70,7 @@ def call_scribe(
     num_speakers: int | None = None,
 ) -> dict:
     data: dict[str, str] = {
-        "model_id": "scribe_v1",
+        "model_id": "scribe_v2",
         "diarize": "true",
         "tag_audio_events": "true",
         "timestamps_granularity": "word",
